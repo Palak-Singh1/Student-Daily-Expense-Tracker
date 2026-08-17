@@ -1,3 +1,1 @@
- 1.Streamlit :
- In vs code Terminal :
- python -m streamlit run app1.py
+Streamlit 
