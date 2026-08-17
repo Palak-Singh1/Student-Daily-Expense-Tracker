@@ -120,16 +120,20 @@ st.markdown("""
     /* Streamlit form input text */
     div[data-testid="stTextInput"] input,
     div[data-testid="stNumberInput"] input,
-    div[data-testid="stTextArea"] textarea {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stSelectbox"] input {
+        color: #202b40 !important;
+        -webkit-text-fill-color: #202b40 !important;
+        background-color: #ffffff !important;
     }
 
     /* Input placeholders */
     div[data-testid="stTextInput"] input::placeholder,
+    div[data-testid="stNumberInput"] input::placeholder,
     div[data-testid="stTextArea"] textarea::placeholder {
-        color: #aeb0ba !important;
-        -webkit-text-fill-color: #aeb0ba !important;
+        color: #8b95aa !important;
+        -webkit-text-fill-color: #8b95aa !important;
         opacity: 1 !important;
     }
 
