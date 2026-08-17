@@ -19,13 +19,8 @@ def display_menu():
     print("7. Exit")
     print("=" * 40)
 
-
-def add_expense():
+def add_expense_data(amount, category, description):
     global next_id
-
-    amount = float(input("Enter Amount: ₹"))
-    category = input("Enter Category: ")
-    description = input("Enter Description: ")
 
     expense = {
         "id": next_id,
@@ -35,11 +30,19 @@ def add_expense():
     }
 
     expenses.append(expense)
+    next_id += 1
+
+    return expense
+
+def add_expense():
+    amount = float(input("Enter Amount: ₹"))
+    category = input("Enter Category: ")
+    description = input("Enter Description: ")
+
+    expense = add_expense_data(amount, category, description)
 
     print("\n✅ Expense Added Successfully!")
-    print("Expense ID:", next_id)
-
-    next_id += 1
+    print("Expense ID:", expense["id"])
 
 
 def view_expenses():
@@ -119,33 +122,35 @@ def total_expense():
 
 # ---------------- Main Program ----------------
 
-while True:
+if __name__ == "__main__":
 
-    display_menu()
+    while True:
 
-    choice = input("Enter your choice: ")
+        display_menu()
 
-    if choice == "1":
-        add_expense()
+        choice = input("Enter your choice: ")
 
-    elif choice == "2":
-        view_expenses()
+        if choice == "1":
+            add_expense()
 
-    elif choice == "3":
-        search_expense()
+        elif choice == "2":
+            view_expenses()
 
-    elif choice == "4":
-        update_expense()
+        elif choice == "3":
+            search_expense()
 
-    elif choice == "5":
-        delete_expense()
+        elif choice == "4":
+            update_expense()
 
-    elif choice == "6":
-        total_expense()
+        elif choice == "5":
+            delete_expense()
 
-    elif choice == "7":
-        print("\nThank you for using Student Daily Expense Tracker ❤️")
-        break
+        elif choice == "6":
+            total_expense()
 
-    else:
-        print("\nInvalid Choice! Please enter 1-7.")
+        elif choice == "7":
+            print("\nThank you for using Student Daily Expense Tracker ❤️")
+            break
+
+        else:
+            print("\nInvalid Choice! Please enter 1-7.")
