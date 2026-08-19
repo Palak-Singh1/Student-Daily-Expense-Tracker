@@ -1,11 +1,14 @@
 
-# Spendly — Student Daily Expense Tracker
+
+## Spendly — Student Daily Expense Tracker
 
 Spendly is a modern, student-focused daily expense and budget management web application built with Python and Streamlit.
 
 It helps students record their everyday expenses, organize transactions by category, monitor their monthly budget, understand spending patterns, and make better financial decisions.
 
 ---
+##Live Demo Link :
+https://spendly-tracker.streamlit.app/
 
 ## ✨ Features
 
