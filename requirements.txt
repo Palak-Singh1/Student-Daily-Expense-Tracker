@@ -1,1 +1,2 @@
 streamlit==1.48.0
+supabase>=2.10.0,<3.0.0

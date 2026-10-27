@@ -1,5 +1,6 @@
 import streamlit as st
 import main
+import database
 import textwrap
 from datetime import date, datetime
 
@@ -494,6 +495,160 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+# -------------------------------------------------
+# DATABASE CONNECTION + USER AUTHENTICATION
+# -------------------------------------------------
+
+try:
+    db = database.get_client()
+except Exception as exc:
+    st.error("Spendly database is not configured yet.")
+    st.markdown(
+        "Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` under "
+        "Streamlit **Settings → Secrets**, then restart the app."
+    )
+    st.code(
+        '[supabase]\n'
+        'url = "https://YOUR-PROJECT.supabase.co"\n'
+        'anon_key = "YOUR_SUPABASE_ANON_KEY"',
+        language="toml"
+    )
+    st.stop()
+
+if "db_access_token" not in st.session_state:
+    st.session_state.db_access_token = None
+if "db_refresh_token" not in st.session_state:
+    st.session_state.db_refresh_token = None
+if "db_user_id" not in st.session_state:
+    st.session_state.db_user_id = None
+
+# Restore the Supabase session between Streamlit reruns.
+if st.session_state.db_access_token and st.session_state.db_refresh_token:
+    try:
+        refreshed = db.auth.set_session(
+            st.session_state.db_access_token,
+            st.session_state.db_refresh_token
+        )
+        if getattr(refreshed, "session", None):
+            st.session_state.db_access_token = refreshed.session.access_token
+            st.session_state.db_refresh_token = refreshed.session.refresh_token
+        auth_user = db.auth.get_user()
+        if getattr(auth_user, "user", None):
+            st.session_state.db_user_id = auth_user.user.id
+    except Exception:
+        st.session_state.db_access_token = None
+        st.session_state.db_refresh_token = None
+        st.session_state.db_user_id = None
+
+if not st.session_state.db_user_id:
+    st.markdown(
+        "<div style='text-align:center;padding:1rem 0 0.2rem'>"
+        "<div style='font-size:42px;font-weight:800;color:#6d28d9'>Spendly</div>"
+        "<div style='font-size:17px;color:#64748b'>Your expenses, safely in one place.</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    login_tab, signup_tab = st.tabs(["Log in", "Create account"])
+
+    with login_tab:
+        with st.form("supabase_login_form"):
+            login_email = st.text_input("Email address", key="login_email")
+            login_password = st.text_input("Password", type="password", key="login_password")
+            login_submit = st.form_submit_button("Log in", use_container_width=True)
+        if login_submit:
+            try:
+                result = db.auth.sign_in_with_password({
+                    "email": login_email.strip(),
+                    "password": login_password
+                })
+                if result.user and result.session:
+                    st.session_state.db_access_token = result.session.access_token
+                    st.session_state.db_refresh_token = result.session.refresh_token
+                    st.session_state.db_user_id = result.user.id
+                    st.rerun()
+                st.error("Login did not return an active session. Please try again.")
+            except Exception:
+                st.error("Could not log in. Check your email and password, then try again.")
+
+    with signup_tab:
+        with st.form("supabase_signup_form"):
+            signup_name = st.text_input("Your name", key="signup_name")
+            signup_email = st.text_input("Email address", key="signup_email")
+            signup_password = st.text_input(
+                "Create password (at least 6 characters)",
+                type="password",
+                key="signup_password"
+            )
+            signup_submit = st.form_submit_button("Create account", use_container_width=True)
+        if signup_submit:
+            if not signup_name.strip():
+                st.error("Please enter your name.")
+            elif len(signup_password) < 6:
+                st.error("Password must be at least 6 characters.")
+            else:
+                try:
+                    result = db.auth.sign_up({
+                        "email": signup_email.strip(),
+                        "password": signup_password,
+                        "options": {"data": {"display_name": signup_name.strip()}}
+                    })
+                    if result.user and result.session:
+                        st.session_state.db_access_token = result.session.access_token
+                        st.session_state.db_refresh_token = result.session.refresh_token
+                        st.session_state.db_user_id = result.user.id
+                        database.save_profile(
+                            db, result.user.id,
+                            display_name=signup_name.strip(),
+                            monthly_budget=8000.0,
+                            budget_alerts=True
+                        )
+                        st.success("Account created!")
+                        st.rerun()
+                    else:
+                        st.success(
+                            "Account created. Check your email to confirm it, "
+                            "then return here and log in."
+                        )
+                except Exception:
+                    st.error("Could not create the account. The email may already be registered.")
+    st.caption("Each account has its own expenses and budget. Your data is not shared with other users.")
+    st.stop()
+
+user_id = st.session_state.db_user_id
+
+# Load or create this account's preferences.
+profile = database.get_profile(db, user_id)
+if not profile:
+    profile = database.save_profile(
+        db, user_id, display_name="Palak", monthly_budget=8000.0, budget_alerts=True
+    )
+
+# Refresh settings from the database at the start of each session.
+if st.session_state.get("db_loaded_profile_for") != user_id:
+    st.session_state.user_name = profile.get("display_name") or "Palak"
+    st.session_state.monthly_budget = float(profile.get("monthly_budget") or 8000.0)
+    st.session_state.budget_alerts = bool(profile.get("budget_alerts", True))
+    st.session_state.db_loaded_profile_for = user_id
+
+# Database is the source of truth for transaction records.
+main.expenses[:] = database.get_expenses(db, user_id)
+main.next_id = max((int(e.get("id", 0)) for e in main.expenses), default=0) + 1
+
+with st.sidebar:
+    st.caption(f"Signed in as {st.session_state.user_name}")
+    if st.button("Log out", use_container_width=True):
+        try:
+            db.auth.sign_out()
+        except Exception:
+            pass
+        st.session_state.db_access_token = None
+        st.session_state.db_refresh_token = None
+        st.session_state.db_user_id = None
+        st.session_state.pop("db_loaded_profile_for", None)
+        st.rerun()
+
+
 # -------------------------------------------------
 # DATA FROM EXISTING PYTHON LOGIC
 # -------------------------------------------------
@@ -945,8 +1100,11 @@ elif st.session_state.page == "Add Expense":
                 if note.strip():
                     expense["note"] = note.strip()
 
-                main.expenses.append(expense)
-                main.next_id += 1
+                try:
+                    database.add_expense(db, user_id, expense)
+                except Exception:
+                    st.error("Could not save this expense to the database. Please try again.")
+                    st.stop()
 
                 st.success("Expense added successfully!")
 
@@ -1075,7 +1233,7 @@ elif st.session_state.page == "History":
                     "Delete",
                     key=f"history_delete_{index}_{expense['id']}"
                 ):
-                    main.expenses.remove(expense)
+                    database.delete_expense(db, user_id, expense["id"])
                     st.success("Expense deleted successfully!")
                     st.rerun()
 
@@ -1280,6 +1438,12 @@ elif st.session_state.page == "Budget":
             st.error("Please enter a budget greater than ₹0.")
         else:
             st.session_state.monthly_budget = float(new_budget)
+            database.save_profile(
+                db, user_id,
+                display_name=st.session_state.user_name,
+                monthly_budget=float(new_budget),
+                budget_alerts=st.session_state.budget_alerts
+            )
             st.success(f"Monthly budget updated to ₹{new_budget:,.0f}.")
             st.rerun()
 
@@ -1359,6 +1523,12 @@ elif st.session_state.page == "Settings":
 
         else:
             st.session_state.user_name = new_name.strip()
+            database.save_profile(
+                db, user_id,
+                display_name=st.session_state.user_name,
+                monthly_budget=st.session_state.monthly_budget,
+                budget_alerts=st.session_state.budget_alerts
+            )
             st.success("Profile updated successfully!")
             st.rerun()
 
@@ -1378,6 +1548,12 @@ elif st.session_state.page == "Settings":
 
     if budget_alerts != st.session_state.budget_alerts:
         st.session_state.budget_alerts = budget_alerts
+        database.save_profile(
+            db, user_id,
+            display_name=st.session_state.user_name,
+            monthly_budget=st.session_state.monthly_budget,
+            budget_alerts=st.session_state.budget_alerts
+        )
 
     if st.session_state.budget_alerts:
         st.success(
@@ -1414,6 +1590,7 @@ elif st.session_state.page == "Settings":
 
             if expenses:
 
+                database.clear_expenses(db, user_id)
                 main.expenses.clear()
 
                 st.success("All transactions have been cleared.")
@@ -1431,6 +1608,12 @@ elif st.session_state.page == "Settings":
         ):
 
             st.session_state.monthly_budget = 8000.0
+            database.save_profile(
+                db, user_id,
+                display_name=st.session_state.user_name,
+                monthly_budget=8000.0,
+                budget_alerts=st.session_state.budget_alerts
+            )
             st.session_state.budget_reset_notice = True
             st.rerun()
 

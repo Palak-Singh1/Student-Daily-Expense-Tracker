@@ -135,3 +135,36 @@ Spendly/
 ├── main.py             # Expense data and application logic
 ├── README.md           # Project documentation
 └── requirements.txt    # Python dependencies
+
+## Supabase database setup (persistent cloud storage)
+
+This version adds Supabase Auth and a PostgreSQL database. Each signed-in user can access only their own expenses and preferences.
+
+### 1. Create a Supabase project
+1. Create a project at https://supabase.com/.
+2. Open **SQL Editor → New query**.
+3. Paste the contents of `supabase_schema.sql` and run it.
+4. In **Project Settings → API** (or **Connect**), copy the Project URL and the **anon/public** key. Never use the `service_role` key in this app.
+
+### 2. Add Streamlit secrets
+In your Streamlit Community Cloud app, open **Settings → Secrets** and add:
+
+```toml
+[supabase]
+url = "https://YOUR-PROJECT-REF.supabase.co"
+anon_key = "YOUR_SUPABASE_ANON_PUBLIC_KEY"
+```
+
+Replace both placeholders with your actual project values. Do not commit secrets to GitHub.
+
+### 3. Deploy this version
+1. Commit/push `app.py`, `app1.py`, `database.py`, `requirements.txt`, and `supabase_schema.sql` to the GitHub repository connected to Streamlit.
+2. In Streamlit Community Cloud, set **Main file path** to `app.py` (or `app1.py`).
+3. Reboot the app after adding secrets.
+4. Create an account in Spendly, then log in. New expenses and preferences will be stored in Supabase.
+
+### Important notes
+- This does not automatically migrate expenses that existed only in an old Streamlit session; that data was not persistent.
+- Each user must sign in. Row Level Security restricts records to their owner.
+- Supabase email confirmation may be enabled by default. If signup does not log you in immediately, confirm your email, then use the Log in tab.
+- Never expose a service-role key.
